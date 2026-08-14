@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/arabold/docs-mcp-server/compare/v3.0.0...v3.0.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **embeddings:** request float encoding for openai-compatible providers ([1ba9b46](https://github.com/arabold/docs-mcp-server/commit/1ba9b462394c32ba5518dd7a1e4120a10011684c)), closes [#431](https://github.com/arabold/docs-mcp-server/issues/431) [#469](https://github.com/arabold/docs-mcp-server/issues/469)
+
 # [2.5.0](https://github.com/arabold/docs-mcp-server/compare/v2.4.5...v2.5.0) (2026-08-06)
 
 
