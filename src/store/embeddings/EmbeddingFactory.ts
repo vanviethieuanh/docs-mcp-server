@@ -153,6 +153,13 @@ export function createEmbeddingModel(
           modelName: model,
           batchSize: 512, // OpenAI supports large batches
           timeout: requestTimeoutMs,
+          // Request plain float arrays instead of letting the OpenAI SDK pick its
+          // default. Without this the SDK sends `encoding_format: "base64"` and then
+          // unconditionally base64-decodes the response. OpenAI-compatible providers
+          // that ignore the parameter (Mistral, LM Studio, Ollama, ...) return JSON
+          // floats, which the decoder mangles into a silently corrupted vector of a
+          // quarter the length and every element zero.
+          encodingFormat: "float",
         };
       // Add custom base URL if specified
       const baseURL = process.env.OPENAI_API_BASE;
