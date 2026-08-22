@@ -43,7 +43,6 @@ import {
   useSystemHealth,
 } from "../api/hooks";
 import { trpc } from "../api/trpc";
-import { parseIntegerAtLeast } from "../utils/number";
 import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
 import { Drawer } from "./Drawer";
@@ -97,6 +96,16 @@ function parsePatterns(raw: string): string[] | undefined {
     .map((s) => s.trim())
     .filter(Boolean);
   return items.length > 0 ? items : undefined;
+}
+
+function parsePositiveInt(raw: string): number | undefined {
+  const value = Number.parseInt(raw.trim(), 10);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function parseNonNegativeInt(raw: string): number | undefined {
+  const value = Number.parseInt(raw.trim(), 10);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 function headersToRows(headers: Record<string, string> | undefined): HeaderRow[] {
@@ -293,8 +302,8 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
           version: trimmedVersion,
           scope,
           followRedirects,
-          maxPages: parseIntegerAtLeast(maxPages, 1),
-          maxDepth: parseIntegerAtLeast(maxDepth, 0),
+          maxPages: parsePositiveInt(maxPages),
+          maxDepth: parseNonNegativeInt(maxDepth),
           ignoreErrors,
           scrapeMode,
           includePatterns: parsePatterns(includePatterns),
