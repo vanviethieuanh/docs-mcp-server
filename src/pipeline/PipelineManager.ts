@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { EventBusService } from "../events/EventBusService";
 import { EventType } from "../events/types";
 import { ScraperRegistry, ScraperService } from "../scraper";
+import { GitHubVersionedScrapeOrchestrator } from "../scraper/github/GitHubVersionedScrapeOrchestrator";
 import type { ScraperOptions, ScraperProgressEvent } from "../scraper/types";
 import { ScrapeMode } from "../scraper/types";
 import type { DocumentManagementService } from "../store";
@@ -312,6 +313,33 @@ export class PipelineManager implements IPipeline {
   }
 
   /**
+   * Enqueues a GitHub versioned scrape: clones the repository, discovers
+   * semantic-version tags, and indexes each tag's docs directory as an
+   * independent version. Runs synchronously in the manager process (which owns
+   * the temporary clone).
+   */
+  async enqueueGitHubVersionsJob(
+    library: string,
+    repositoryUrl: string,
+    options?: {
+      docsSubpath?: string;
+      tagFilter?: string;
+      includePatterns?: string[];
+      excludePatterns?: string[];
+    },
+  ): Promise<unknown> {
+    const orchestrator = new GitHubVersionedScrapeOrchestrator(this, this.appConfig);
+    return orchestrator.run({
+      library,
+      repositoryUrl,
+      docsSubpath: options?.docsSubpath,
+      tagFilter: options?.tagFilter,
+      includePatterns: options?.includePatterns,
+      excludePatterns: options?.excludePatterns,
+    });
+  }
+
+  /**
    * Enqueues a refresh job for an existing library version by re-scraping all pages
    * and using ETag comparison to skip unchanged content.
    *
@@ -323,7 +351,7 @@ export class PipelineManager implements IPipeline {
     version: string | undefined | null,
     options?: Pick<ScraperOptions, "preserveHashes">,
   ): Promise<string> {
-    // Normalize version: treat undefined/null as "" (unversioned)
+    // Normalize version: treat null/undefined as "" (unversioned)
     const normalizedVersion = version ?? "";
 
     try {

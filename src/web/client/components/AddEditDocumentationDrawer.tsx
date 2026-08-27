@@ -37,6 +37,7 @@ import {
 import { ScrapeMode } from "../../../scraper/types";
 import type { AppRouter } from "../../../services/appRouter";
 import {
+  useEnqueueGitHubVersionsJob,
   useEnqueueScrapeJob,
   useGetScraperOptions,
   useListLibraries,
@@ -217,10 +218,14 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
     open && mode === "edit" && versionId != null,
   );
   const enqueueScrapeJob = useEnqueueScrapeJob();
+  const enqueueGitHubVersionsJob = useEnqueueGitHubVersionsJob();
 
+  const [tab, setTab] = useState<"web" | "github">("web");
   const [libraryName, setLibraryName] = useState("");
   const [versionName, setVersionName] = useState("");
   const [url, setUrl] = useState("");
+  const [docsSubpath, setDocsSubpath] = useState("docs");
+  const [tagFilter, setTagFilter] = useState("");
   const [scope, setScope] = useState<Scope>("subpages");
   const [maxPages, setMaxPages] = useState("");
   const [maxDepth, setMaxDepth] = useState("");
@@ -235,9 +240,12 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
   // Reset to blank/basic defaults every time the drawer is (re)opened.
   useEffect(() => {
     if (!open) return;
+    setTab("web");
     setLibraryName(library ?? "");
     setVersionName(version ?? "");
     setUrl("");
+    setDocsSubpath("docs");
+    setTagFilter("");
     setScope("subpages");
     setMaxPages("");
     setMaxDepth("");
@@ -287,50 +295,75 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
   const trimmedLibrary = libraryName.trim();
   const trimmedVersion = versionName.trim();
   const trimmedUrl = url.trim();
+  const isGithubTab = tab === "github";
   const canSubmit =
-    trimmedLibrary.length > 0 && trimmedUrl.length > 0 && !enqueueScrapeJob.isPending;
+    trimmedLibrary.length > 0 &&
+    (isGithubTab
+      ? trimmedUrl.length > 0 && !enqueueGitHubVersionsJob.isPending
+      : trimmedUrl.length > 0 && !enqueueScrapeJob.isPending);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
     try {
-      await enqueueScrapeJob.mutateAsync({
-        library: trimmedLibrary,
-        version: trimmedVersion || undefined,
-        options: {
-          url: trimmedUrl,
+      if (tab === "github") {
+        await enqueueGitHubVersionsJob.mutateAsync({
           library: trimmedLibrary,
-          version: trimmedVersion,
-          scope,
-          followRedirects,
-          maxPages: parsePositiveInt(maxPages),
-          maxDepth: parseNonNegativeInt(maxDepth),
-          ignoreErrors,
-          scrapeMode,
+          repositoryUrl: trimmedUrl,
+          docsSubpath: docsSubpath.trim() || undefined,
+          tagFilter: tagFilter.trim() || undefined,
           includePatterns: parsePatterns(includePatterns),
           excludePatterns: parsePatterns(excludePatterns),
-          preserveHashes,
-          headers: rowsToHeaders(headers),
-        },
-      });
+        });
+      } else {
+        await enqueueScrapeJob.mutateAsync({
+          library: trimmedLibrary,
+          version: trimmedVersion || undefined,
+          options: {
+            url: trimmedUrl,
+            library: trimmedLibrary,
+            version: trimmedVersion,
+            scope,
+            followRedirects,
+            maxPages: parsePositiveInt(maxPages),
+            maxDepth: parseNonNegativeInt(maxDepth),
+            ignoreErrors,
+            scrapeMode,
+            includePatterns: parsePatterns(includePatterns),
+            excludePatterns: parsePatterns(excludePatterns),
+            preserveHashes,
+            headers: rowsToHeaders(headers),
+          },
+        });
+      }
       await utils.invalidate();
       toast.success(
-        mode === "edit"
-          ? `Re-indexing ${trimmedLibrary}${trimmedVersion ? ` ${trimmedVersion}` : ""}`
-          : `Started indexing ${trimmedLibrary}${trimmedVersion ? ` ${trimmedVersion}` : ""}`,
+        tab === "github"
+          ? `Started versioned GitHub scrape of ${trimmedLibrary}`
+          : mode === "edit"
+            ? `Re-indexing ${trimmedLibrary}${trimmedVersion ? ` ${trimmedVersion}` : ""}`
+            : `Started indexing ${trimmedLibrary}${trimmedVersion ? ` ${trimmedVersion}` : ""}`,
       );
       onClose();
     } catch (err) {
       toast.error(
-        mode === "edit" ? "Failed to save & re-index" : "Failed to start indexing",
+        tab === "github"
+          ? "Failed to start GitHub versioned scrape"
+          : mode === "edit"
+            ? "Failed to save & re-index"
+            : "Failed to start indexing",
         err instanceof Error ? err.message : String(err),
       );
     }
   }, [
     canSubmit,
     enqueueScrapeJob,
+    enqueueGitHubVersionsJob,
+    tab,
     trimmedLibrary,
     trimmedVersion,
     trimmedUrl,
+    docsSubpath,
+    tagFilter,
     scope,
     followRedirects,
     maxPages,
@@ -369,7 +402,11 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
           </Button>
           <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit}>
             <Icon name={mode === "edit" ? "i-refresh" : "i-bolt"} size="sm" />
-            {mode === "edit" ? "Save & re-index" : "Start indexing"}
+            {tab === "github"
+              ? "Start GitHub versioned scrape"
+              : mode === "edit"
+                ? "Save & re-index"
+                : "Start indexing"}
           </Button>
         </>
       }
@@ -385,71 +422,135 @@ function DrawerForm({ open, mode, library, version, onClose }: DrawerFormProps) 
         </div>
       ) : null}
 
+      <SegmentedControl
+        variant="full"
+        aria-label="Source type"
+        options={[
+          { value: "web", label: "Web / file" },
+          { value: "github", label: "GitHub versions" },
+        ]}
+        value={tab}
+        onChange={(v) => setTab(v as "web" | "github")}
+      />
+
+      {tab === "github" ? (
+        <div className="note" style={{ marginTop: "0.75rem" }}>
+          <Icon name="i-globe" size="sm" />
+          <span>
+            Clones the GitHub repo, discovers semantic-version Git tags (e.g.{" "}
+            <span className="mono">v1.2.3</span> or <span className="mono">1.2.3</span>),
+            and indexes each tag's docs folder as its own version. Temporary clone is
+            cleaned up when done.
+          </span>
+        </div>
+      ) : null}
+
       <div className="form-2">
         <div className="form-row">
           <label htmlFor="doc-drawer-library">Library name</label>
           <input
             id="doc-drawer-library"
             className="input"
-            placeholder="e.g. react, vue, express"
+            placeholder="e.g. textual"
             value={libraryName}
             onChange={(e) => setLibraryName(e.target.value)}
             disabled={mode === "edit" || Boolean(library)}
           />
         </div>
+        {tab === "github" ? (
+          <div className="form-row">
+            <label htmlFor="doc-drawer-docs-subpath">Docs folder</label>
+            <input
+              id="doc-drawer-docs-subpath"
+              className="input mono"
+              placeholder="docs"
+              value={docsSubpath}
+              onChange={(e) => setDocsSubpath(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div className="form-row">
+            <label htmlFor="doc-drawer-version">
+              Version{" "}
+              <span className="muted" style={{ fontWeight: 400 }}>
+                (optional)
+              </span>
+            </label>
+            <input
+              id="doc-drawer-version"
+              className="input"
+              placeholder="e.g. 2.0.0 or latest"
+              value={versionName}
+              onChange={(e) => setVersionName(e.target.value)}
+              disabled={mode === "edit"}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="form-row">
+        <label htmlFor="doc-drawer-url">
+          {tab === "github" ? "GitHub repository URL" : "URL"}
+        </label>
+        <input
+          id="doc-drawer-url"
+          className="input"
+          placeholder={
+            tab === "github"
+              ? "https://github.com/owner/repo"
+              : "https://example.com/docs"
+          }
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <span className="hint">
+          {tab === "github"
+            ? "Repository root URL. Every semantic-version tag with a docs folder is indexed."
+            : "Web page, sitemap, or a file:// path. Local paths must be accessible to the server."}
+        </span>
+      </div>
+
+      {tab === "github" ? (
         <div className="form-row">
-          <label htmlFor="doc-drawer-version">
-            Version{" "}
+          <label htmlFor="doc-drawer-tag-filter">
+            Tag filter{" "}
             <span className="muted" style={{ fontWeight: 400 }}>
               (optional)
             </span>
           </label>
           <input
-            id="doc-drawer-version"
-            className="input"
-            placeholder="e.g. 2.0.0 or latest"
-            value={versionName}
-            onChange={(e) => setVersionName(e.target.value)}
-            disabled={mode === "edit"}
+            id="doc-drawer-tag-filter"
+            className="input mono"
+            placeholder="e.g. v2.0.0 — index only this tag"
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
           />
         </div>
-      </div>
+      ) : null}
 
-      <div className="form-row">
-        <label htmlFor="doc-drawer-url">URL</label>
-        <input
-          id="doc-drawer-url"
-          className="input"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <span className="hint">
-          Web page, sitemap, or a <span className="mono">file://</span> path. Local paths
-          must be accessible to the server.
-        </span>
-      </div>
-
-      <div className="form-row">
-        <span className="form-label">
-          What to index{" "}
-          <span className="muted" style={{ fontWeight: 400 }}>
-            · scope
+      {tab === "web" ? (
+        <div className="form-row">
+          <span className="form-label">
+            What to index{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              · scope
+            </span>
           </span>
-        </span>
-        <SegmentedControl
-          variant="full"
-          aria-label="Indexing scope"
-          options={SCOPE_OPTIONS}
-          value={scope}
-          onChange={setScope}
-          hint={
-            <div className="note">
-              <Icon name="i-globe" size="sm" />
-              <span>{scopeHint}</span>
-            </div>
-          }
-        />
-      </div>
+          <SegmentedControl
+            variant="full"
+            aria-label="Indexing scope"
+            options={SCOPE_OPTIONS}
+            value={scope}
+            onChange={setScope}
+            hint={
+              <div className="note">
+                <Icon name="i-globe" size="sm" />
+                <span>{scopeHint}</span>
+              </div>
+            }
+          />
+        </div>
+      ) : null}
 
       <details className="adv">
         <summary>

@@ -1357,6 +1357,7 @@ export class DocumentStore {
         signal: _signal,
         initialQueue: _initialQueue,
         isRefresh: _isRefresh,
+        githubVersioned: _githubVersioned,
         ...scraper_options
       } = options;
 

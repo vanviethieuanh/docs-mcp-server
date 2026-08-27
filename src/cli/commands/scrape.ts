@@ -127,6 +127,26 @@ export function createScrapeCommand(cli: Argv) {
           description: "Clear existing documents before scraping",
           default: true,
         })
+        .option("all-versions", {
+          type: "boolean",
+          description:
+            "Clone a GitHub repository root URL, discover semantic-version Git tags, and index each tag's docs directory as an independent version",
+          default: false,
+          alias: "allVersions",
+        })
+        .option("docs-subpath", {
+          type: "string",
+          description:
+            "Subdirectory within each tag to index for --all-versions (default: docs)",
+          default: "docs",
+          alias: "docsSubpath",
+        })
+        .option("tag-filter", {
+          type: "string",
+          description:
+            "For --all-versions, only index this single tag/version instead of all versions",
+          alias: "tagFilter",
+        })
         .usage(
           "$0 scrape <library> <url> [options]\n\n" +
             "Scrape and index documentation from a URL or local folder.\n\n" +
@@ -135,6 +155,7 @@ export function createScrapeCommand(cli: Argv) {
             "  scrape mylib https://react.dev/reference/react\n" +
             "  scrape mylib file:///Users/me/docs/index.html\n" +
             "  scrape mylib file:///Users/me/docs/my-library\n" +
+            "  scrape textual https://github.com/Textualize/textual --all-versions --docs-subpath docs\n" +
             "\nNote: For local files/folders, you must use the file:// prefix. If running in Docker, mount the folder and use the container path. See README for details.",
         );
     },
@@ -259,11 +280,23 @@ export function createScrapeCommand(cli: Argv) {
                 : undefined,
             headers: Object.keys(headers).length > 0 ? headers : undefined,
             clean: argv.clean as boolean,
+            allVersions: argv.allVersions as boolean,
+            docsSubpath: argv.docsSubpath as string,
+            tagFilter: argv.tagFilter as string | undefined,
           },
         });
 
         if ("pagesScraped" in result) {
-          renderTextOutput(`Successfully scraped ${result.pagesScraped} pages`);
+          if (result.versioned) {
+            const v = result.versioned;
+            renderTextOutput(
+              `Versioned scrape complete: ${v.versionsDiscovered} tags discovered, ` +
+                `${v.versionsIndexed} indexed, ${v.versionsSkipped} skipped, ` +
+                `${v.versionsFailed} failed (${result.pagesScraped} pages total)`,
+            );
+          } else {
+            renderTextOutput(`Successfully scraped ${result.pagesScraped} pages`);
+          }
         } else {
           renderTextOutput(`Scraping job started with ID: ${result.jobId}`);
         }

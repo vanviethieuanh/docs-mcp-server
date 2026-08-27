@@ -3,6 +3,7 @@ import { ScraperError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { validateUrl } from "../utils/url";
 import { GitHubScraperStrategy } from "./strategies/GitHubScraperStrategy";
+import { GitHubVersionedScraperStrategy } from "./strategies/GitHubVersionedScraperStrategy";
 import { LocalFileStrategy } from "./strategies/LocalFileStrategy";
 import { NpmScraperStrategy } from "./strategies/NpmScraperStrategy";
 import { PyPiScraperStrategy } from "./strategies/PyPiScraperStrategy";
@@ -38,6 +39,11 @@ export class ScraperRegistry {
       return new LocalFileStrategy(this.config);
     }
 
+    if (isGitHubVersionedUrl(url)) {
+      logger.debug(`Using strategy "GitHubVersionedScraperStrategy" for URL: ${url}`);
+      return new GitHubVersionedScraperStrategy(this.config);
+    }
+
     if (isNpmUrl(url)) {
       logger.debug(`Using strategy "NpmScraperStrategy" for URL: ${url}`);
       return new NpmScraperStrategy(this.config);
@@ -64,6 +70,10 @@ export class ScraperRegistry {
 
 function isLocalFileUrl(url: string): boolean {
   return url.startsWith("file://");
+}
+
+function isGitHubVersionedUrl(url: string): boolean {
+  return url.startsWith("github-version://");
 }
 
 function isNpmUrl(url: string): boolean {

@@ -130,6 +130,33 @@ export class PipelineClient implements IPipeline {
     }
   }
 
+  async enqueueGitHubVersionsJob(
+    library: string,
+    repositoryUrl: string,
+    options?: {
+      docsSubpath?: string;
+      tagFilter?: string;
+      includePatterns?: string[];
+      excludePatterns?: string[];
+    },
+  ): Promise<unknown> {
+    try {
+      const result = await this.client.enqueueGitHubVersionsJob.mutate({
+        library,
+        repositoryUrl,
+        docsSubpath: options?.docsSubpath,
+        tagFilter: options?.tagFilter,
+        includePatterns: options?.includePatterns,
+        excludePatterns: options?.excludePatterns,
+      });
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to enqueue GitHub versioned job: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async getJob(jobId: string): Promise<PipelineJob | undefined> {
     try {
       // superjson automatically deserializes Date objects

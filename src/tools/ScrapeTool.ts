@@ -1,5 +1,6 @@
 import * as semver from "semver";
 import type { IPipeline } from "../pipeline/trpc/interfaces";
+import { GitHubVersionedScrapeOrchestrator } from "../scraper/github/GitHubVersionedScrapeOrchestrator";
 import { ScrapeMode } from "../scraper/types";
 import type { AppConfig } from "../utils/config";
 import { logger } from "../utils/logger";
@@ -60,6 +61,17 @@ export interface ScrapeToolOptions {
      * @default true
      */
     clean?: boolean;
+    /**
+     * When true and `url` is a GitHub repository root, clones the repository,
+     * discovers semantic-version Git tags (with or without a leading `v`), and
+     * indexes each tag's docs directory as an independent version.
+     * @default false
+     */
+    allVersions?: boolean;
+    /** Subdirectory within each tag to index (defaults to `docs`). */
+    docsSubpath?: string;
+    /** If set, only index this tag/version instead of all versions. */
+    tagFilter?: string;
   };
   /** If false, returns jobId immediately without waiting. Defaults to true. */
   waitForCompletion?: boolean;
@@ -68,6 +80,19 @@ export interface ScrapeToolOptions {
 export interface ScrapeResult {
   /** Indicates the number of pages scraped if waitForCompletion was true and the job succeeded. May be 0 or inaccurate if job failed or waitForCompletion was false. */
   pagesScraped: number;
+  /** Present when an `allVersions` GitHub scrape was run to completion. */
+  versioned?: {
+    versionsDiscovered: number;
+    versionsIndexed: number;
+    versionsSkipped: number;
+    versionsFailed: number;
+    versions: Array<{
+      version: string;
+      tag: string;
+      status: "indexed" | "skipped" | "failed";
+      pagesScraped: number;
+    }>;
+  };
 }
 
 /** Return type for ScrapeTool.execute */
@@ -85,6 +110,19 @@ export class ScrapeTool {
     this.scraperConfig = config;
   }
 
+  private isGitHubRepoRootUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      if (!["github.com", "www.github.com"].includes(parsed.hostname)) {
+        return false;
+      }
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      return segments.length === 2;
+    } catch {
+      return false;
+    }
+  }
+
   async execute(options: ScrapeToolOptions): Promise<ScrapeExecuteResult> {
     const {
       library,
@@ -93,6 +131,49 @@ export class ScrapeTool {
       options: scraperOptions,
       waitForCompletion = true,
     } = options;
+
+    // Versioned GitHub scrape (all tags) is only valid for repository root URLs.
+    if (scraperOptions?.allVersions) {
+      if (!this.isGitHubRepoRootUrl(url)) {
+        throw new ValidationError(
+          `allVersions scraping is only supported for GitHub repository root URLs (e.g. https://github.com/owner/repo). Received: ${url}`,
+          "ScrapeTool",
+        );
+      }
+      if (version !== null && version !== undefined) {
+        throw new ValidationError(
+          `Cannot combine "version" with "allVersions". Pass "tagFilter" to index a single tag instead.`,
+          "ScrapeTool",
+        );
+      }
+
+      const orchestrator = new GitHubVersionedScrapeOrchestrator(this.pipeline, {
+        scraper: this.scraperConfig,
+      } as AppConfig);
+      const versionedResult = await orchestrator.run({
+        library,
+        repositoryUrl: url,
+        docsSubpath: scraperOptions.docsSubpath,
+        keepWorkspace: false,
+        includePatterns: scraperOptions.includePatterns,
+        excludePatterns: scraperOptions.excludePatterns,
+        tagFilter: scraperOptions.tagFilter,
+      });
+
+      return {
+        pagesScraped: versionedResult.versions.reduce(
+          (sum, v) => sum + v.pagesScraped,
+          0,
+        ),
+        versioned: {
+          versionsDiscovered: versionedResult.versionsDiscovered,
+          versionsIndexed: versionedResult.versionsIndexed,
+          versionsSkipped: versionedResult.versionsSkipped,
+          versionsFailed: versionedResult.versionsFailed,
+          versions: versionedResult.versions,
+        },
+      };
+    }
 
     // Store initialization and manager start should happen externally
 

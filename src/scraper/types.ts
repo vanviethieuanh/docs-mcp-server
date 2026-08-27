@@ -129,6 +129,26 @@ export interface ScraperOptions {
    * Internal-only allowlist roots for application-managed temporary files.
    */
   internalAllowedFileRoots?: string[];
+  /**
+   * Internal options set by the GitHub versioned-scrape orchestrator.
+   * When present, the strategy streams content from Git rather than the network
+   * or filesystem.
+   */
+  githubVersioned?: GitHubVersionedScrapeInternals;
+}
+
+/**
+ * Internal options for a versioned GitHub scrape. The orchestrator clones the
+ * repository once and shares the clone directory across per-version jobs; the
+ * strategy streams content from Git (via `git show`) instead of the filesystem.
+ */
+export interface GitHubVersionedScrapeInternals {
+  /** Directory of the local Git clone (shared across versions). */
+  repoDir: string;
+  /** Git tag to index. */
+  tag: string;
+  /** Subpath within the tag to index (e.g. `docs`). */
+  docsSubpath: string;
 }
 
 /**

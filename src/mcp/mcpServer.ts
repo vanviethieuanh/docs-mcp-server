@@ -71,6 +71,31 @@ export function createMcpServerInstance(
           .boolean()
           .optional()
           .describe("Preserve hash fragments for hash-routed SPA documentation sites."),
+        allVersions: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "For a GitHub repository root URL, clone the repo, discover semantic-version Git tags, and index each tag's docs directory as an independent version.",
+          ),
+        docsSubpath: z
+          .string()
+          .optional()
+          .describe(
+            "Subdirectory within each tag to index when allVersions is true (default: docs).",
+          ),
+        tagFilter: z
+          .string()
+          .optional()
+          .describe("When allVersions is true, only index this single tag/version."),
+        includePatterns: z
+          .array(z.string())
+          .optional()
+          .describe("Glob or /regex/ patterns for URLs to include."),
+        excludePatterns: z
+          .array(z.string())
+          .optional()
+          .describe("Glob or /regex/ patterns for URLs to exclude (takes precedence)."),
       },
       {
         title: "Scrape New Library Documentation",
@@ -86,6 +111,11 @@ export function createMcpServerInstance(
         scope,
         followRedirects,
         preserveHashes,
+        allVersions,
+        docsSubpath,
+        tagFilter,
+        includePatterns,
+        excludePatterns,
       }) => {
         // Track MCP tool usage
         telemetry.track(TelemetryEvent.TOOL_USED, {
@@ -105,7 +135,7 @@ export function createMcpServerInstance(
             url,
             library,
             version,
-            waitForCompletion: false, // Don't wait for completion
+            waitForCompletion: allVersions === true, // Versioned GitHub scrapes are synchronous
             // onProgress: undefined, // Explicitly undefined or omitted
             options: {
               maxPages,
@@ -113,6 +143,11 @@ export function createMcpServerInstance(
               scope,
               followRedirects,
               preserveHashes,
+              allVersions,
+              docsSubpath,
+              tagFilter,
+              includePatterns,
+              excludePatterns,
             },
           });
 

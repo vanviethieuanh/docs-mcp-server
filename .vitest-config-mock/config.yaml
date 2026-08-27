@@ -36,6 +36,11 @@ scraper:
     maxCacheItemSizeBytes: 512000
   document:
     maxSize: 10485760
+  github:
+    versionedScrape:
+      enabled: false
+      keepWorkspace: false
+      docsSubpath: docs
   security:
     network:
       mode: open

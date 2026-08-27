@@ -31,6 +31,16 @@ export interface IPipeline {
     version: string | undefined | null,
     options?: Pick<ScraperOptions, "preserveHashes">,
   ): Promise<string>;
+  enqueueGitHubVersionsJob(
+    library: string,
+    repositoryUrl: string,
+    options?: {
+      docsSubpath?: string;
+      tagFilter?: string;
+      includePatterns?: string[];
+      excludePatterns?: string[];
+    },
+  ): Promise<unknown>;
   getJob(jobId: string): Promise<PipelineJob | undefined>;
   getJobs(status?: PipelineJobStatus): Promise<PipelineJob[]>;
   cancelJob(jobId: string): Promise<void>;

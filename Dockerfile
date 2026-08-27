@@ -9,6 +9,8 @@ RUN apt-get update \
   python3 \
   make \
   g++ \
+  git \
+  ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 # Build stage

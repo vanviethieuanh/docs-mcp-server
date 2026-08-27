@@ -54,6 +54,15 @@ const enqueueRefreshInput = z.object({
     .optional(),
 });
 
+const enqueueGitHubVersionsInput = z.object({
+  library: nonEmptyTrimmed,
+  repositoryUrl: z.string().min(1),
+  docsSubpath: z.string().optional(),
+  tagFilter: z.string().optional(),
+  includePatterns: z.array(z.string()).optional(),
+  excludePatterns: z.array(z.string()).optional(),
+});
+
 const jobIdInput = z.object({ id: z.string().min(1) });
 
 const getJobsInput = z.object({
@@ -103,6 +112,31 @@ export function createPipelineRouter(trpc: unknown) {
           );
 
           return { jobId };
+        },
+      ),
+
+    enqueueGitHubVersionsJob: tt.procedure
+      .input(enqueueGitHubVersionsInput)
+      .mutation(
+        async ({
+          ctx,
+          input,
+        }: {
+          ctx: PipelineTrpcContext;
+          input: z.infer<typeof enqueueGitHubVersionsInput>;
+        }) => {
+          const result = await ctx.pipeline.enqueueGitHubVersionsJob(
+            input.library,
+            input.repositoryUrl,
+            {
+              docsSubpath: input.docsSubpath,
+              tagFilter: input.tagFilter,
+              includePatterns: input.includePatterns,
+              excludePatterns: input.excludePatterns,
+            },
+          );
+
+          return result;
         },
       ),
 

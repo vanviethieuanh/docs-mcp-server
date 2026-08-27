@@ -35,6 +35,11 @@ export function useEnqueueRefreshJob() {
   return trpc.enqueueRefreshJob.useMutation();
 }
 
+/** Runs a GitHub versioned scrape (clone → discover tags → index each tag's docs). */
+export function useEnqueueGitHubVersionsJob() {
+  return trpc.enqueueGitHubVersionsJob.useMutation();
+}
+
 /** Cancels a running or queued pipeline job. */
 export function useCancelJob() {
   return trpc.cancelJob.useMutation();

@@ -118,6 +118,13 @@ export const DEFAULT_CONFIG = {
     document: {
       maxSize: 10 * 1024 * 1024, // 10MB max size for PDF/Office documents
     },
+    github: {
+      versionedScrape: {
+        enabled: false,
+        keepWorkspace: false,
+        docsSubpath: "docs",
+      },
+    },
     security: {
       network: {
         mode: "open",
@@ -266,6 +273,23 @@ export const AppConfigSchema = z.object({
             .default(DEFAULT_CONFIG.scraper.document.maxSize),
         })
         .default(DEFAULT_CONFIG.scraper.document),
+      github: z
+        .object({
+          versionedScrape: z
+            .object({
+              enabled: envBoolean.default(
+                DEFAULT_CONFIG.scraper.github.versionedScrape.enabled,
+              ),
+              keepWorkspace: envBoolean.default(
+                DEFAULT_CONFIG.scraper.github.versionedScrape.keepWorkspace,
+              ),
+              docsSubpath: z
+                .string()
+                .default(DEFAULT_CONFIG.scraper.github.versionedScrape.docsSubpath),
+            })
+            .default(DEFAULT_CONFIG.scraper.github.versionedScrape),
+        })
+        .optional(),
       security: z
         .object({
           network: z
