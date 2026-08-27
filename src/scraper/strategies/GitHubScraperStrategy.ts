@@ -266,6 +266,20 @@ export class GitHubScraperStrategy extends BaseScraperStrategy {
     this.repoProcessor = new GitHubRepoProcessor(config);
   }
 
+  /**
+   * GitHub blob URLs use a virtual `.../blob/<branch>/<path>` scheme that does
+   * not share a path prefix with the user-provided source URL (e.g. a
+   * `.../tree/<branch>/<subdir>` URL). Applying the generic web `isInScope`
+   * check here would reject every discovered blob URL because its pathname is
+   * not a path-descendant of the tree URL. GitHub discovery already scopes
+   * files via `isWithinSubPath` and filters them with `shouldProcessFile`
+   * (type detection plus include/exclude patterns on the repo-relative path),
+   * so no additional URL filtering is needed at queue time.
+   */
+  protected shouldProcessUrl(_url: string, _options: ScraperOptions): boolean {
+    return true;
+  }
+
   canHandle(url: string): boolean {
     // Handle legacy github-file:// protocol URLs (no longer supported)
     // These will be processed and marked as NOT_FOUND to trigger cleanup
@@ -633,8 +647,9 @@ export class GitHubScraperStrategy extends BaseScraperStrategy {
         };
       }
 
-      // Discover wiki URL for full repo scrapes (will be processed by GitHubWikiScraperStrategy)
-      const wikiUrl = `${options.url.replace(/\/$/, "")}/wiki`;
+      // Discover wiki URL for full repo scrapes (will be processed by GitHubWikiScraperStrategy).
+      // Always anchor the wiki at the repository root, not at the user's tree subpath.
+      const wikiUrl = `https://github.com/${owner}/${repo}/wiki`;
       discoveredLinks.push(wikiUrl);
       logger.debug(`Discovered wiki URL: ${wikiUrl}`);
 

@@ -669,4 +669,95 @@ describe("GitHubScraperStrategy", () => {
       );
     });
   });
+
+  describe("shouldProcessUrl", () => {
+    it("should not reject blob URLs discovered from a tree URL (web scope bypass)", () => {
+      const treeOptions: ScraperOptions = {
+        url: "https://github.com/owner/repo/tree/main/docs",
+        library: "test-lib",
+        version: "1.0.0",
+      };
+      // A blob URL's pathname (/owner/repo/blob/main/docs/x) is not a
+      // path-descendant of the tree URL (/owner/repo/tree/main/docs), so the
+      // generic subpages scope check would reject it. GitHub discovery already
+      // scopes via subPath, so the override must accept these.
+      expect(
+        // @ts-expect-error Accessing protected method for testing
+        strategy.shouldProcessUrl(
+          "https://github.com/owner/repo/blob/main/docs/intro.md",
+          treeOptions,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("scrape with tree subdirectory URL", () => {
+    it("should index files under the tree subpath without dropping them via web scope", async () => {
+      httpFetcherInstance.fetch.mockImplementation((url: string) => {
+        if (url.includes("api.github.com/repos/") && !url.includes("/git/trees/")) {
+          return Promise.resolve({
+            content: JSON.stringify({ default_branch: "main" }),
+            mimeType: "application/json",
+            source: url,
+            charset: "utf-8",
+            status: FetchStatus.SUCCESS,
+          });
+        }
+        if (url.includes("/git/trees/")) {
+          return Promise.resolve({
+            content: JSON.stringify({
+              sha: "tree123",
+              url: "https://api.github.com/repos/owner/repo/git/trees/tree123",
+              tree: [
+                { path: "docs/intro.md", type: "blob", sha: "s1", size: 10, url: "" },
+                {
+                  path: "docs/api/app.md",
+                  type: "blob",
+                  sha: "s2",
+                  size: 10,
+                  url: "",
+                },
+                { path: "README.md", type: "blob", sha: "s3", size: 10, url: "" },
+                { path: "src/index.js", type: "blob", sha: "s4", size: 10, url: "" },
+              ],
+              truncated: false,
+            }),
+            mimeType: "application/json",
+            source: url,
+            charset: "utf-8",
+            status: FetchStatus.SUCCESS,
+          });
+        }
+        return Promise.resolve({
+          content: "# Title\n\nSome docs content here.",
+          mimeType: "text/markdown",
+          source: url,
+          charset: "utf-8",
+          status: FetchStatus.SUCCESS,
+        });
+      });
+
+      const treeOptions: ScraperOptions = {
+        url: "https://github.com/owner/repo/tree/main/docs",
+        library: "test-lib",
+        version: "1.0.0",
+      };
+
+      const progress = vi.fn();
+      await strategy.scrape(treeOptions, progress);
+
+      // The two files under docs/ must be indexed; README.md and src/index.js
+      // are outside the subPath and the tree subdir must not be silently
+      // emptied by web scope filtering. (The wiki Home page may also be indexed.)
+      const pages = progress.mock.calls
+        .map((call) => call[0] as { result?: { url?: string } | null })
+        .filter((event) => event.result);
+
+      const urls = pages.map((event) => event.result!.url);
+      expect(urls).toContain("https://github.com/owner/repo/blob/main/docs/intro.md");
+      expect(urls).toContain("https://github.com/owner/repo/blob/main/docs/api/app.md");
+      expect(urls).not.toContain("https://github.com/owner/repo/blob/main/README.md");
+      expect(urls).not.toContain("https://github.com/owner/repo/blob/main/src/index.js");
+    });
+  });
 });
