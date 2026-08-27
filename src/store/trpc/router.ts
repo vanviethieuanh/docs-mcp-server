@@ -133,6 +133,15 @@ export function createDataRouter(trpc: unknown) {
         },
       ),
 
+    removeLibrary: tt.procedure
+      .input(z.object({ library: nonEmpty }))
+      .mutation(
+        async ({ ctx, input }: { ctx: DataTrpcContext; input: { library: string } }) => {
+          await ctx.docService.removeLibrary(input.library);
+          return { ok: true } as const;
+        },
+      ),
+
     // Status and version helpers
 
     getVersionsByStatus: tt.procedure

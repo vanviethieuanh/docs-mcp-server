@@ -45,6 +45,31 @@ export async function registerTrpcService(
           systemInfo,
           isWorkerConnected,
         }),
+      // Job-creating mutations should respond 201 Created. The caller can poll
+      // `getJob`/`getJobs` (or subscribe to events) to observe the outcome.
+      responseMeta: ({
+        paths,
+        errors,
+        type,
+      }: {
+        paths?: readonly string[];
+        errors: unknown[];
+        type: string;
+      }) => {
+        if (
+          type === "mutation" &&
+          (!errors || errors.length === 0) &&
+          paths?.some(
+            (p) =>
+              p === "enqueueScrapeJob" ||
+              p === "enqueueRefreshJob" ||
+              p === "enqueueGitHubVersionsJob",
+          )
+        ) {
+          return { status: 201 };
+        }
+        return {};
+      },
     },
   });
 }

@@ -92,6 +92,10 @@ export class DocumentManagementClient implements IDocumentManagement {
     await this.client.removeAllDocuments.mutate({ library, version: version ?? null });
   }
 
+  async removeLibrary(library: string): Promise<void> {
+    await this.client.removeLibrary.mutate({ library });
+  }
+
   async getVersionsByStatus(statuses: VersionStatus[]): Promise<DbVersionWithLibrary[]> {
     return this.client.getVersionsByStatus.query({
       statuses: statuses as unknown as string[],

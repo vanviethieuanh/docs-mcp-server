@@ -158,4 +158,19 @@ describe("dataRouter - chunk explorer procedures", () => {
       });
     });
   });
+
+  describe("removeLibrary", () => {
+    it("removes the whole library and all versions", async () => {
+      await caller.removeLibrary({ library: "router-test-lib" });
+
+      const libs = await docService.listLibraries();
+      expect(libs.find((l) => l.library === "router-test-lib")).toBeUndefined();
+    });
+
+    it("is a no-op for an unknown library", async () => {
+      await expect(caller.removeLibrary({ library: "ghost" })).resolves.toEqual({
+        ok: true,
+      });
+    });
+  });
 });

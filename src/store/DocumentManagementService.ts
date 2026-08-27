@@ -447,6 +447,22 @@ export class DocumentManagementService {
   }
 
   /**
+   * Completely removes a library and all of its versions, pages, and documents.
+   * @param library Library name
+   */
+  async removeLibrary(library: string): Promise<void> {
+    const normalizedLibrary = library.toLowerCase();
+    const libraryRecord = await this.store.getLibrary(normalizedLibrary);
+    if (!libraryRecord) {
+      logger.warn(`⚠️  Library ${library} not found; nothing to remove.`);
+      return;
+    }
+    const documentsDeleted = await this.store.deleteLibraryByName(normalizedLibrary);
+    logger.info(`🗑️ Removed library ${library} (${documentsDeleted} documents)`);
+    this.eventBus.emit(EventType.LIBRARY_CHANGE, undefined);
+  }
+
+  /**
    * Adds pre-processed content directly to the store.
    * This method is used when content has already been processed by a pipeline,
    * avoiding redundant processing. Used primarily by the scraping pipeline.

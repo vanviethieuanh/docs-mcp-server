@@ -127,6 +127,8 @@ export class DocumentStore {
     getPageId: Database.Statement<[number, string]>;
     deleteDocuments: Database.Statement<[string, string]>;
     deleteDocumentsByPageId: Database.Statement<[number]>;
+    deleteDocumentsByVersionId: Database.Statement<[number]>;
+    deletePagesByVersionId: Database.Statement<[number]>;
     deletePage: Database.Statement<[number]>;
     deletePages: Database.Statement<[string, string]>;
     queryVersions: Database.Statement<[string]>;
@@ -318,6 +320,16 @@ export class DocumentStore {
       ),
       deleteDocumentsByPageId: this.db.prepare<[number]>(
         "DELETE FROM documents WHERE page_id = ?",
+      ),
+      deleteDocumentsByVersionId: this.db.prepare<[number]>(
+        `DELETE FROM documents
+         WHERE page_id IN (
+           SELECT p.id FROM pages p
+           WHERE p.version_id = ?
+         )`,
+      ),
+      deletePagesByVersionId: this.db.prepare<[number]>(
+        "DELETE FROM pages WHERE version_id = ?",
       ),
       deletePage: this.db.prepare<[number]>("DELETE FROM pages WHERE id = ?"),
       deletePages: this.db.prepare<[string, string]>(
@@ -1339,6 +1351,38 @@ export class DocumentStore {
       this.statements.deleteLibraryById.run(libraryId);
     } catch (error) {
       throw new StoreError(`Failed to delete library: ${error}`);
+    }
+  }
+
+  /**
+   * Completely removes a library and all of its versions, pages, and documents.
+   * @param library Library name
+   * @returns The number of documents deleted.
+   */
+  async deleteLibraryByName(library: string): Promise<number> {
+    const normalizedLibrary = library.toLowerCase();
+    try {
+      const libraryRecord = await this.getLibrary(normalizedLibrary);
+      if (!libraryRecord) {
+        return 0;
+      }
+
+      const versionRows = this.statements.queryVersionsByLibraryId.all(
+        libraryRecord.id,
+      ) as Array<{ id: number }>;
+      let documentsDeleted = 0;
+
+      for (const { id } of versionRows) {
+        // Delete documents and pages for this version (FK order).
+        documentsDeleted += this.statements.deleteDocumentsByVersionId.run(id).changes;
+        this.statements.deletePagesByVersionId.run(id);
+        this.statements.deleteVersionById.run(id);
+      }
+
+      await this.deleteLibrary(libraryRecord.id);
+      return documentsDeleted;
+    } catch (error) {
+      throw new StoreError(`Failed to delete library ${library}: ${error}`);
     }
   }
 

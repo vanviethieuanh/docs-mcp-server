@@ -388,6 +388,31 @@ describe("DocumentStore - With Embeddings", () => {
       expect(await store.checkDocumentExists("multilib", "2.0.0")).toBe(true);
     });
 
+    it("deletes an entire library and all of its documents via deleteLibraryByName", async () => {
+      await store.addDocuments(
+        "fulllib",
+        "1.0.0",
+        1,
+        createScrapeResult("V1 Doc", "https://example.com/v1", "V1", ["a"]),
+      );
+      await store.addDocuments(
+        "fulllib",
+        "2.0.0",
+        1,
+        createScrapeResult("V2 Doc", "https://example.com/v2", "V2", ["b"]),
+      );
+
+      const deleted = await store.deleteLibraryByName("fulllib");
+
+      expect(deleted).toBe(2);
+      expect(await store.checkDocumentExists("fulllib", "1.0.0")).toBe(false);
+      expect(await store.checkDocumentExists("fulllib", "2.0.0")).toBe(false);
+      expect(await store.getLibrary("fulllib")).toBeNull();
+
+      // Idempotent: removing again is a no-op.
+      expect(await store.deleteLibraryByName("fulllib")).toBe(0);
+    });
+
     it("should handle multiple versions of the same library", async () => {
       await store.addDocuments(
         "versionlib",

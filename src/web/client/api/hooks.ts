@@ -55,6 +55,11 @@ export function useRemoveVersion() {
   return trpc.removeVersion.useMutation();
 }
 
+/** Completely removes an indexed library and all of its versions. */
+export function useRemoveLibrary() {
+  return trpc.removeLibrary.useMutation();
+}
+
 /** Fetches the stored scraper options for a given indexed version. */
 export function useGetScraperOptions(
   input: RouterInputs["getScraperOptions"],

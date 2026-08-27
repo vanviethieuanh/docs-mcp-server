@@ -8,12 +8,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { VersionStatus } from "../../../store/types";
-import { useEnqueueRefreshJob, useListLibraries } from "../api/hooks";
+import { useEnqueueRefreshJob, useListLibraries, useRemoveLibrary } from "../api/hooks";
 import { trpc } from "../api/trpc";
 import { useDocumentationDrawer } from "../components/AddEditDocumentationDrawer";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
+import { useConfirm } from "../components/ConfirmDialog";
 import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { LibIcon } from "../components/LibIcon";
@@ -31,6 +32,8 @@ export default function LibraryDetail() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useListLibraries();
   const enqueueRefreshJob = useEnqueueRefreshJob();
+  const removeLibrary = useRemoveLibrary();
+  const confirm = useConfirm();
   const drawer = useDocumentationDrawer();
   const toast = useToast();
   const utils = trpc.useUtils();
@@ -106,6 +109,34 @@ export default function LibraryDetail() {
     }
   }
 
+  async function handleRemoveLibrary() {
+    const ok = await confirm({
+      title: "Remove library",
+      description: (
+        <>
+          This permanently removes{" "}
+          <b>
+            {libraryName} ({libraryVersions.length} version
+            {libraryVersions.length === 1 ? "" : "s"}, {formatCount(totalChunks)} chunks)
+          </b>{" "}
+          from the index. This can&rsquo;t be undone.
+        </>
+      ),
+    });
+    if (!ok) return;
+    try {
+      await removeLibrary.mutateAsync({ library: libraryName });
+      await utils.listLibraries.invalidate();
+      toast.success(`Removed library ${libraryName}`);
+      navigate("/libraries");
+    } catch (err) {
+      toast.error(
+        "Failed to remove library",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   return (
     <div>
       <button type="button" className="link back" onClick={() => navigate("/libraries")}>
@@ -154,6 +185,16 @@ export default function LibraryDetail() {
             <Icon name="i-refresh" size="sm" />
             Refresh all
           </Button>
+          <button
+            type="button"
+            className="linkbtn"
+            style={{ color: "var(--err)", alignSelf: "center" }}
+            onClick={handleRemoveLibrary}
+            disabled={removeLibrary.isPending}
+          >
+            <Icon name="i-trash" size="xs" />
+            Remove library
+          </button>
         </div>
       </Card>
 

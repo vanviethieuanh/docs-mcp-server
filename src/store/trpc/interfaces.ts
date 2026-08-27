@@ -39,6 +39,7 @@ export interface IDocumentManagement {
   ): Promise<StoreSearchResult[]>;
   removeAllDocuments(library: string, version?: string | null): Promise<void>;
   removeVersion(library: string, version?: string | null): Promise<void>;
+  removeLibrary(library: string): Promise<void>;
 
   // Minimal set used indirectly by pipeline/UI where needed
   getVersionsByStatus(statuses: VersionStatus[]): Promise<DbVersionWithLibrary[]>;

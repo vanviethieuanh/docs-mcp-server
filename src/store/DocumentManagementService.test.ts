@@ -51,6 +51,7 @@ const mockStore = {
   // Library management methods
   getLibrary: vi.fn(),
   deleteLibrary: vi.fn(),
+  deleteLibraryByName: vi.fn(),
   // Chunk explorer methods
   listVersionChunks: vi.fn(),
   getVersionStats: vi.fn(),
@@ -66,6 +67,7 @@ vi.mock("./DocumentStore", () => {
 });
 
 import { EventBusService } from "../events";
+import { EventType } from "../events/types";
 import { loadConfig } from "../utils/config";
 import { getProjectRoot } from "../utils/paths";
 // Import the mocked constructor AFTER vi.mock
@@ -101,6 +103,7 @@ const appConfig = loadConfig();
 
 describe("DocumentManagementService", () => {
   let docService: DocumentManagementService; // For general tests
+  let eventBus: EventBusService;
   const projectRoot = getProjectRoot();
 
   // Define expected paths consistently using the calculated actual root
@@ -131,7 +134,7 @@ describe("DocumentManagementService", () => {
 
     // Initialize the main service instance used by most tests
     // This will now use memfs for its internal fs calls
-    const eventBus = new EventBusService();
+    eventBus = new EventBusService();
     docService = new DocumentManagementService(eventBus, appConfig);
   });
 
@@ -360,6 +363,23 @@ describe("DocumentManagementService", () => {
       expect(mockStore.deletePages).toHaveBeenCalledWith(library, ""); // Fix: Use mockStoreInstance
       await docService.removeAllDocuments(library, "");
       expect(mockStore.deletePages).toHaveBeenCalledWith(library, ""); // Fix: Use mockStoreInstance
+    });
+
+    it("should remove an entire library and emit a library change event", async () => {
+      mockStore.getLibrary.mockResolvedValue({ id: 7, name: "removelib" });
+      mockStore.deleteLibraryByName.mockResolvedValue(5);
+      const emitSpy = vi.spyOn(eventBus, "emit");
+
+      await docService.removeLibrary("removelib");
+
+      expect(mockStore.deleteLibraryByName).toHaveBeenCalledWith("removelib");
+      expect(emitSpy).toHaveBeenCalledWith(EventType.LIBRARY_CHANGE, undefined);
+    });
+
+    it("should no-op removeLibrary when the library does not exist", async () => {
+      mockStore.getLibrary.mockResolvedValue(null);
+      await docService.removeLibrary("ghost");
+      expect(mockStore.deleteLibraryByName).not.toHaveBeenCalled();
     });
 
     describe("listVersions", () => {
